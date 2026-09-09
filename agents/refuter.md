@@ -34,6 +34,8 @@ Must-fix for ACCEPT:
 
 REWORK requires at least one CRITICAL or HIGH finding or an unmet spec item. Do not REWORK on style alone.
 
+No blank lines, no prose outside the block. The 30-line cap counts every line. If findings exceed it, keep CRITICAL and HIGH, summarize the rest as `+N MEDIUM/LOW, see SCRATCH` — but only if the brief gave you a SCRATCH path; otherwise drop the LOWs.
+
 ## If the spec is unclear
 
 Report `Cannot verify <X>: spec does not state <Y>` and stop. Do not fill the gap with your own assumption.

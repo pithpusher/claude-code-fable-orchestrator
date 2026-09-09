@@ -54,6 +54,9 @@ collide; the quality loss is not worth the wall-clock gain.
    doc, dispatch the next phase. `REWORK` → same builder, findings pasted
    verbatim. Max 2 rework loops, then the orchestrator intervenes.
 5. Never dispatch phase N+1 while phase N is unverified.
+6. If the orchestrator touches the deliverable after `ACCEPT` — fixing LOW
+   findings, wording, a heading — it reruns `MUST VERIFY` itself before the
+   phase is done. The file that ships must be the file that was checked.
 
 ## Brief template
 
