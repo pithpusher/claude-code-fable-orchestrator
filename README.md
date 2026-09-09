@@ -168,7 +168,7 @@ Plugins can install agents, skills, commands, hooks and MCP servers. They don't 
 
 ## Origin and credits
 
-The role split — Fable orchestrates, Haiku scouts, Sonnet researches, Opus refutes — comes from [a post in r/claude](https://www.reddit.com/r/claude/comments/1vswkuu/using_fable_as_an_orchestrator_subagents_saves_or/) on running Fable 5.1 without hitting usage limits. This repo turns it into installable agent definitions, adds the strictly-sequential rule and the artifact-path pattern, and makes the refuter rerun verification itself.
+The role split — Fable orchestrates, Haiku scouts, Sonnet researches, Opus refutes — comes from [*How I use subagents without burning through Fable*](https://www.reddit.com/r/ClaudeCode/comments/1wbc03f/how_i_use_subagents_without_burning_through_fable/) on r/ClaudeCode. This repo turns it into installable agent definitions, adds the strictly-sequential rule and the artifact-path pattern, and makes the refuter rerun verification itself.
 
 ## License
 
