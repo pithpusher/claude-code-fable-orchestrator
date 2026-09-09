@@ -1,6 +1,6 @@
 ---
 name: builder
-description: Use when a spec is already clear and the task is to implement it and make the tests pass. Edits code, runs the verify command, reports the diff summary and test output. Does not review its own work.
+description: Use when a spec is already clear and the task is to produce the file(s) — code, HTML, report, template, or doc — and make the verify command pass. Edits or creates the listed files, runs the verify command, reports the diff summary and output. Does not review its own work.
 tools: Read, Edit, Write, Grep, Glob, Bash
 model: opus
 color: green

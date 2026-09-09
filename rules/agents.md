@@ -24,6 +24,12 @@ Model per role is pinned in each agent's frontmatter.
 Spawning costs more than doing for: a one-line fix, a single grep or glob, a
 file under ~100 lines, or an answer already in context. Do those inline.
 
+Everything else goes through the builder — **including non-code deliverables**:
+HTML, reports, templates, docs, generated assets. "No test exists" is not a
+reason to build it yourself; `MUST VERIFY` is then a render, a lint, a link
+check, or opening the file and confirming the required sections are present.
+If you are about to Write a file over ~100 lines, stop and brief the builder.
+
 ## Sequential phases
 
 Work runs one phase at a time. Parallel writers lose shared context and
