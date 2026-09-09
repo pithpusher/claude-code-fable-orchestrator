@@ -1,0 +1,7 @@
+{
+  "model": "claude-fable-5-1",
+  "fallbackModel": ["sonnet"],
+  "env": {
+    "CLAUDE_CODE_SUBAGENT_MODEL": "sonnet"
+  }
+}

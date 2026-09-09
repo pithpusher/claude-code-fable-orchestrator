@@ -1,0 +1,19 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "pithpusher",
+  "description": "Plugins by pithpusher",
+  "owner": {
+    "name": "pithpusher"
+  },
+  "plugins": [
+    {
+      "name": "claude-code-fable-orchestrator",
+      "description": "Fable as orchestrator, cheap models as workers. Five subagents with pinned models, a sequential builder-then-refuter loop, and a /handoff skill.",
+      "author": {
+        "name": "pithpusher"
+      },
+      "category": "development",
+      "source": "./"
+    }
+  ]
+}

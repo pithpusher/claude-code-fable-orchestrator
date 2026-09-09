@@ -1,0 +1,18 @@
+# claude-code-fable-orchestrator
+
+> A Claude Code plugin that runs Fable 5.1 as the orchestrator and cheaper models as workers: five subagents with pinned models (scout=haiku, researcher=sonnet, builder=opus, refuter=opus, debugger=opus), a strictly sequential builder-then-refuter loop, a brief template for every agent call, and a /handoff skill that lets a new session resume from a file.
+
+Install: `/plugin marketplace add pithpusher/claude-code-fable-orchestrator` then `/plugin install claude-code-fable-orchestrator@pithpusher`. Copy rules/agents.md to ~/.claude/rules/ and merge settings.snippet.json into ~/.claude/settings.json.
+
+Key facts:
+- Model per subagent is set with `model:` in the agent's frontmatter (haiku | sonnet | opus | fable | inherit).
+- The global default for subagents is the env var CLAUDE_CODE_SUBAGENT_MODEL in settings.json.
+- Resolution order: Agent tool `model` param > agent frontmatter `model:` > CLAUDE_CODE_SUBAGENT_MODEL > session model. `availableModels` clamps all four.
+- Only the builder agent has the Edit tool; only one builder runs at a time. Parallel agents are used only for read-only work.
+- The refuter reruns the verify command and reads the real `git diff` itself; it never trusts the builder's summary.
+- Phases pass artifact file paths, not contents, to keep the orchestrator's context small.
+
+Docs:
+- README: https://github.com/pithpusher/claude-code-fable-orchestrator#readme
+- Agents: https://github.com/pithpusher/claude-code-fable-orchestrator/tree/main/agents
+- Rule: https://github.com/pithpusher/claude-code-fable-orchestrator/blob/main/rules/agents.md

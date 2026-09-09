@@ -1,0 +1,24 @@
+{
+  "name": "claude-code-fable-orchestrator",
+  "description": "Fable as orchestrator, cheap models as workers. Five Claude Code subagents (scout, researcher, builder, refuter, debugger) with pinned models, a sequential builder-then-refuter loop, and a /handoff skill that keeps the main session context light.",
+  "version": "1.0.0",
+  "author": {
+    "name": "pithpusher"
+  },
+  "homepage": "https://github.com/pithpusher/claude-code-fable-orchestrator",
+  "repository": "https://github.com/pithpusher/claude-code-fable-orchestrator",
+  "license": "MIT",
+  "keywords": [
+    "claude-code",
+    "subagents",
+    "agents",
+    "orchestrator",
+    "fable",
+    "opus",
+    "sonnet",
+    "haiku",
+    "model-selection",
+    "context-management",
+    "handoff"
+  ]
+}
