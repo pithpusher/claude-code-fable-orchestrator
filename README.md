@@ -10,6 +10,7 @@
 ## Contents
 
 - [Install](#install)
+- [Enforcement: the guard hook](#enforcement-the-guard-hook)
 - [Which model should each Claude Code subagent use?](#which-model-should-each-claude-code-subagent-use)
 - [How the loop works](#how-the-loop-works)
 - [How do I keep Fable's context light?](#how-do-i-keep-fables-context-light)
@@ -44,9 +45,28 @@
    }
    ```
 
-4. Restart Claude Code. `/agents` should list `scout`, `researcher`, `builder`, `refuter`, `debugger`.
+4. Turn on the output style — it puts the orchestrator contract in the system prompt, where it outranks rules files:
 
-No hooks, no MCP servers, no background processes. Five markdown files, one skill, one rule.
+   ```json
+   { "outputStyle": "Orchestrator" }
+   ```
+
+5. Restart Claude Code. Ask it to dispatch each of `scout`, `researcher`, `builder`, `refuter`, `debugger` on a trivial task; ask it to write a 50-line file directly and confirm the hook denies it.
+
+No MCP servers, no background processes. Five agents, one skill, one rule, one output style, and one hook.
+
+## Enforcement: the guard hook
+
+Rules are advice, and a strong orchestrator will argue its way past advice — five test runs showed Fable building the deliverable itself whenever the task felt like "analysis." So the plugin ships a `PreToolUse` hook that makes the contract mechanical for the **main session only** (subagents are never restricted — their own tool grants constrain them):
+
+| Main-session call | Result |
+|---|---|
+| `Agent` with `Explore`, `Plan`, or `general-purpose` | denied — use the five roles |
+| `Write` over 40 lines to a project file | denied — brief the builder |
+| `Edit` inserting over 10 lines into a project file | denied — brief the builder |
+| Anything in the scratchpad, `HANDOFF.md`, or `~/.claude` | allowed |
+
+The denial message tells the orchestrator what to do instead. It doesn't cover Bash writes (heredocs, `cp`, `sed`); the output style tells the orchestrator those are the same violation.
 
 ## Which model should each Claude Code subagent use?
 
@@ -61,7 +81,7 @@ No hooks, no MCP servers, no background processes. Five markdown files, one skil
 
 **Only the builder has the `Edit` tool, and only one builder runs at a time.** That single constraint is what makes "never two agents editing the same files" enforceable instead of aspirational.
 
-The orchestrator does trivial things itself — a one-line fix, a single grep, a file under ~100 lines. Spawning an agent for those costs more than doing them.
+The orchestrator does trivial things itself — a one-line fix, a single grep, a file under 40 lines. Spawning an agent for those costs more than doing them. The guard hook draws the same line mechanically.
 
 ## How the loop works
 

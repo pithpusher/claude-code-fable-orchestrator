@@ -32,7 +32,11 @@ Everything else goes through the builder — **including non-code deliverables**
 HTML, reports, templates, docs, generated assets. "No test exists" is not a
 reason to build it yourself; `MUST VERIFY` is then a render, a lint, a link
 check, or opening the file and confirming the required sections are present.
-If you are about to Write a file over ~100 lines, stop and brief the builder.
+A PreToolUse hook (shipped with the plugin) enforces this in the main
+session: `Write` over 40 lines and `Edit` inserting over 10 lines to project
+files are denied, as are the built-in `Explore`, `Plan`, and
+`general-purpose` agents. Scratchpad, `HANDOFF.md`, and `~/.claude` are
+exempt. Do not route around it with Bash heredocs, `cp`, or `sed`.
 
 "It's analysis, not implementation" is not an exception. For a memo, report,
 or valuation the orchestrator writes the **conclusions and structure as a
