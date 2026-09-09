@@ -19,6 +19,10 @@ Model per role is pinned in each agent's frontmatter.
 
 **Only the builder edits project files, and only one builder runs at a time.**
 
+**Do not dispatch the built-in `Explore` or `Plan` agents.** They ignore the
+subagent model default and run on Opus. `scout` replaces Explore; the
+orchestrator itself replaces Plan.
+
 ## Do it yourself when
 
 Spawning costs more than doing for: a one-line fix, a single grep or glob, a
@@ -29,6 +33,11 @@ HTML, reports, templates, docs, generated assets. "No test exists" is not a
 reason to build it yourself; `MUST VERIFY` is then a render, a lint, a link
 check, or opening the file and confirming the required sections are present.
 If you are about to Write a file over ~100 lines, stop and brief the builder.
+
+"It's analysis, not implementation" is not an exception. For a memo, report,
+or valuation the orchestrator writes the **conclusions and structure as a
+spec** — bullets, numbers, the argument — and the builder writes the prose.
+The judgment stays with the orchestrator; the tokens go to the builder.
 
 ## Sequential phases
 
