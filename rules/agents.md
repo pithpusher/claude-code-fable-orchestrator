@@ -1,5 +1,10 @@
 # Agent Orchestration
 
+> **Scope: Fable sessions only.** Everything in this file applies when the
+> session model is Fable (`claude-fable-*`). On Opus, Sonnet, or Haiku, work
+> directly and dispatch agents only when they help; the guard hook is off for
+> those models.
+
 The session model is the **orchestrator**: it writes specs, dispatches agents,
 reads their reports, makes judgment calls, and integrates. It does not read
 large amounts of code, bulk-refactor, or write docs itself. There is no

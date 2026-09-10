@@ -68,6 +68,8 @@ Rules are advice, and a strong orchestrator will argue its way past advice — f
 | `git restore`, `checkout -- <path>`, `reset --hard`, `stash pop`, `clean -f` | denied — these overwrite project files |
 | Anything in the scratchpad, `HANDOFF.md`, or `~/.claude` | allowed |
 
+**Fable only.** The hook enforces nothing unless the session model is Fable. Hook input carries no model field, so it reads the transcript's newest assistant entry or `/model` switch, falling back to `model` in `settings.json`. Plan on Fable, `/model opus`, and the same session executes with no restrictions. The rule file and output style carry the same scope line.
+
 The denial message tells the orchestrator what to do instead. It is a pattern match on the command text, not a sandbox. Known gaps: a script that lives in the scratchpad but writes into the project, in-place edits wrapped in `find -exec` or `xargs`, wrappers prefixed with `env` or `nohup`, and deletions (`rm`). The output style tells the orchestrator those are the same violation.
 
 ## Which model should each Claude Code subagent use?

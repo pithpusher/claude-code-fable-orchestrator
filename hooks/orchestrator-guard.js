@@ -6,6 +6,8 @@
 //   Edit   → project-file edits whose new_string exceeds EDIT_MAX_LINES are denied.
 //   Bash / PowerShell → commands that write a project file are denied.
 // Scratchpad, HANDOFF.md, and anything under ~/.claude are always allowed.
+// Enforced only when the session model is Fable; any other model is allowed everything.
+const fs = require("fs");
 const WRITE_MAX_LINES = 40;
 const EDIT_MAX_LINES = 10;
 const BANNED_AGENTS = new Set(["explore", "plan", "general-purpose"]);
@@ -20,6 +22,8 @@ const WRAPPER = /(?:^|[|;&]\s*)(?:bash|sh|zsh|pwsh|powershell)(?:\.exe)?\s+(?:-\
 const AWK_PROG = /(?:^|[|;&]\s*)(?:awk|gawk|mawk)\b[^'"]*('[^']*'|"[^"]*")/;
 const GIT_OVERWRITE = /(?:^|[|;&]\s*)git\s+(?:-C\s+\S+\s+|-\S+\s+)*(?:restore\b(?![^|;&]*--staged\b)|checkout\b[^|;&]*\s--(?:\s|$)|reset\b[^|;&]*--hard\b|stash\s+(?:pop|apply)\b|clean\b[^|;&]*\s-\S*f)/i;
 const MAX_DEPTH = 3;
+const TAIL_BYTES = 2 * 1024 * 1024;
+const SWITCH = /<local-command-stdout>\s*Set model to\s*`?([^`<\n]+)/;
 
 const norm = (s) => String(s || "").replace(/\\/g, "/").toLowerCase();
 const HOME = norm(HOME_DIR) + "/.claude/";
@@ -37,6 +41,44 @@ const exempt = (file) => {
   // Fallback pattern so a missing scratchpad_dir never blocks scratch writes.
   return (scratch && f.startsWith(scratch)) || /\/temp\/claude\/.*\/scratchpad\//.test(f)
     || f.startsWith(HOME) || /(^|\/)handoff\.md$/.test(f);
+};
+
+// --- model gate: hook input carries no model, so read it from the transcript ---
+const tail = (file) => {
+  try {
+    const fd = fs.openSync(file, "r");
+    const size = fs.fstatSync(fd).size, len = Math.min(size, TAIL_BYTES);
+    const buf = Buffer.alloc(len);
+    fs.readSync(fd, buf, 0, len, size - len);
+    fs.closeSync(fd);
+    return buf.toString("utf8").split("\n");
+  } catch { return []; }
+};
+// Text a person or /model produced; tool results are ignored so a file that
+// merely contains the marker cannot flip the gate.
+const textOf = (c) => (typeof c === "string" ? c : Array.isArray(c)
+  ? c.filter((x) => x && x.type === "text").map((x) => x.text).join("\n") : "");
+// Newest assistant entry or /model switch wins, whichever is later.
+const modelFromTranscript = (file) => {
+  const rows = file ? tail(file) : [];
+  for (let k = rows.length - 1; k >= 0; k--) {
+    let j;
+    try { j = JSON.parse(rows[k]); } catch { continue; }
+    if (!j || j.isSidechain) continue;
+    const m = j.message || {};
+    if (j.type === "assistant" && m.model && m.model !== "<synthetic>") return m.model;
+    const s = j.type !== "assistant" && SWITCH.exec(textOf(m.content));
+    if (s) return s[1];
+  }
+  return "";
+};
+const modelFromSettings = () => {
+  try { return String(JSON.parse(fs.readFileSync(HOME_DIR + "/.claude/settings.json", "utf8")).model || ""); }
+  catch { return ""; }
+};
+const sessionModel = (p) => {
+  const direct = typeof p.model === "string" ? p.model : (p.model && p.model.id) || "";
+  return direct || modelFromTranscript(p.transcript_path) || process.env.ANTHROPIC_MODEL || modelFromSettings();
 };
 
 // --- shell helpers: turn a command line into path tokens we can test ---
@@ -139,6 +181,7 @@ process.stdin.on("end", () => {
   let p;
   try { p = JSON.parse(raw); } catch { return process.exit(0); }
   if (p.agent_id) return process.exit(0); // subagent: not our concern
+  if (!/fable/i.test(sessionModel(p))) return process.exit(0); // rules are Fable-only
   scratch = p.scratchpad_dir ? norm(p.scratchpad_dir) : "";
   cwd = p.cwd ? norm(p.cwd).replace(/\/+$/, "") : "";
 
