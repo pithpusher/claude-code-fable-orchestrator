@@ -1,6 +1,6 @@
 # claude-code-fable-orchestrator
 
-**Fable as the orchestrator, cheaper models as the workers.** A Claude Code plugin with five subagents — scout (Haiku), researcher (Sonnet), builder (Opus), refuter (Opus), debugger (Opus) — a strictly sequential build-then-verify loop, a brief template for every agent call, and a `/handoff` skill so a new session resumes from a file instead of rebuilding context. Fable plans, dispatches, and judges; it never reads whole codebases or bulk-edits.
+**Fable as the orchestrator, cheaper models as the workers.** A Claude Code plugin with five subagents — scout (Haiku), researcher (Sonnet), builder (Opus), refuter (Opus), debugger (Opus) — two session modes, a brief template for every agent call, and a `/handoff` skill so a new session resumes from a file instead of rebuilding context. On Fable, the session plans, dispatches, and verifies; it never reads whole codebases or writes deliverables. On Opus or Sonnet, it works directly and hands off only searches, research, and bulk edits.
 
 ```
 /plugin marketplace add pithpusher/claude-code-fable-orchestrator
@@ -12,8 +12,9 @@
 - [Install](#install)
 - [Enforcement: the guard hook](#enforcement-the-guard-hook)
 - [Which model should each Claude Code subagent use?](#which-model-should-each-claude-code-subagent-use)
-- [How the loop works](#how-the-loop-works)
+- [How delegation works](#how-delegation-works)
 - [How do I keep Fable's context light?](#how-do-i-keep-fables-context-light)
+- [Trim the base context](#trim-the-base-context)
 - [Does parallel multi-agent work hurt quality?](#does-parallel-multi-agent-work-hurt-quality)
 - [The brief template](#the-brief-template)
 - [Claude Code settings that control subagent models](#claude-code-settings-that-control-subagent-models)
@@ -81,33 +82,37 @@ The denial message tells the orchestrator what to do instead. It is a pattern ma
 | `builder` | Opus 5 | **yes** | Implement a clear spec in the listed files, run the verify command, report the diff. | Expand scope, review itself |
 | `refuter` | Opus 5 | – | Read the real diff, rerun the verify command itself, return `ACCEPT` / `REWORK`. | Edit anything, trust a summary |
 | `debugger` | Opus 5 | – | Root cause with reproduction evidence and a proposed fix. | Apply the fix |
-| *orchestrator* | Fable 5.1 (session) | one-liners only | Write specs, dispatch, read verdicts, integrate. | Read large code, bulk refactor, write docs |
+| *session on Fable* | Fable 5.1 | one-liners only | Lean orchestrator: write specs, dispatch, verify, integrate. | Read large code, bulk refactor, write deliverables |
+| *session on Opus / Sonnet* | Opus 5 / Sonnet 5 | yes | Hands-on lead: do the work, delegate searches, research, and bulk edits. | Dispatch agents for work it can do in a few calls |
 
 **Only the builder has the `Edit` tool, and only one builder runs at a time.** That single constraint is what makes "never two agents editing the same files" enforceable instead of aspirational.
 
 The orchestrator does trivial things itself — a one-line fix, a single grep, a file under 40 lines. Spawning an agent for those costs more than doing them. The guard hook draws the same line mechanically.
 
-## How the loop works
+## How delegation works
 
 ```mermaid
 flowchart LR
-    O[Orchestrator<br/>Fable] -->|spec + brief| B[builder<br/>Opus]
-    B -->|diff + verify output<br/>to scratch file| R[refuter<br/>Opus]
-    R -->|ACCEPT| O
-    R -->|REWORK + must-fixes| B
-    O -->|next phase brief carries<br/>artifact PATH only| B
+    O[Session<br/>Fable] -->|spec + brief| B[builder<br/>Opus]
+    B -->|≤25-line report<br/>+ artifact path| O
+    O -->|reruns verify itself,<br/>reads the tail| O
+    O -.->|only on triggers| R[refuter<br/>Opus]
     O -.->|locate| S[scout<br/>Haiku]
     O -.->|facts| Re[researcher<br/>Sonnet]
     O -.->|root cause| D[debugger<br/>Opus]
 ```
 
-Per phase:
+**On Fable (lean orchestrator):**
 
-1. Orchestrator writes the spec into a brief. `KNOWN FACTS` carries the previous phase's artifact **path**, not its contents.
-2. Builder makes the change, writes the diff and verify output to the scratch path, returns ≤25 lines.
-3. Refuter reads the artifact **and the real `git diff`**, reruns the verify command, returns a verdict.
-4. Orchestrator reads verdict and path only. `ACCEPT` → update the handoff doc, dispatch the next phase. `REWORK` → same builder, findings verbatim. Max two rework loops, then the orchestrator intervenes.
-5. Phase N+1 never starts while phase N is unverified.
+1. The session writes the spec into a brief, one brief per feature. `KNOWN FACTS` carries the previous artifact's **path**, not its contents.
+2. The builder makes the change, runs the verify command, and returns ≤25 lines.
+3. The session reruns the verify command itself in one call and reads the last 20 lines. On failure it re-briefs the same builder once with the output, then intervenes.
+4. The refuter runs only for security, auth, payments, or user data; migrations or deletions; changes across more than ~5 files; or on request.
+5. The next step never starts while the current one is unverified.
+
+**On Opus or Sonnet (hands-on lead):** the session reads and edits directly. It sends unknown-location searches to the scout, doc or web facts to the researcher, bulk mechanical edits to the builder with `model: "sonnet"`, and hard bugs to the debugger. The refuter triggers are the same.
+
+Earlier versions ran the refuter on every phase. That cost 50–60k tokens per phase on top of the builder, which often made the loop more expensive than plain prompting. Verifying with one command costs one turn.
 
 ## How do I keep Fable's context light?
 
@@ -115,9 +120,18 @@ Three mechanisms, all enforced by the agent definitions rather than by hoping:
 
 - **Output caps.** Every agent has a max-lines rule in its definition (scout 40, builder 25, refuter 30). Anything longer goes to a scratch file and the agent returns the path.
 - **Artifact paths, not contents.** The next phase's brief references the previous artifact by path. The orchestrator never holds two phases' worth of diff in context.
-- **Verdicts, not work.** The orchestrator reads `ACCEPT`/`REWORK` and the must-fix list. It doesn't read the diff — the refuter did, on Opus.
+- **Verify tails, not diffs.** The orchestrator runs the verify command once and reads the last 20 lines. It doesn't read the diff.
+- **Few Fable turns.** Every Fable tool call re-reads the whole context. So the plan file is written once, briefs cover a whole feature, and the session never audits its own transcript.
 
 Plus `/handoff`: at milestones and before context runs low, the orchestrator writes `.claude/HANDOFF.md` (goal, decisions with reasons, done, next step, open questions, verify command; ≤60 lines, overwritten not appended). A fresh session reads it and restates the next step in three lines.
+
+## Trim the base context
+
+Every turn re-reads the full system prompt. A fresh session measured about 102k tokens before the first word. That includes every enabled plugin's skill descriptions, every connector's tool names, and any plugin that injects text at session start.
+
+- **Claude Code plugins:** set unused ones to `false` in `enabledPlugins` in `~/.claude/settings.json`, and re-enable per project in `.claude/settings.json`. Plugins with session-start injections cost the most.
+- **App plugins** (legal, sales, marketing, …): turn off in the Claude app's plugin settings.
+- **claude.ai connectors:** disconnect the ones you don't use in Claude Code at claude.ai → Settings → Connectors.
 
 ## Does parallel multi-agent work hurt quality?
 
@@ -170,10 +184,13 @@ The `model` param on the `Agent` tool is for changing a single call — `sonnet`
 ## FAQ
 
 **Why is the builder on Opus and not Sonnet?**
-Because on long phases the builder does the heavy lifting, and the refuter can only catch what it can see. If you'd rather trade quality for cost, change one line in `agents/builder.md` (`model: sonnet`); the refuter stays Opus either way.
+Because the refuter no longer runs on every step, the builder's first draft is usually what ships. If you'd rather trade quality for cost, change one line in `agents/builder.md` (`model: sonnet`); the refuter stays Opus either way.
+
+**Doesn't delegation cost more tokens than just prompting?**
+It can. Every agent starts cold. The old always-on refuter reread everything the builder wrote. Delegation pays off when it moves many-turn reading and writing off the expensive session model. For a one-file fix, do it inline, which is what both modes say.
 
 **Can I use this without Fable?**
-Yes. Set `model` in `settings.json` to whatever you orchestrate with. The role split and the loop don't depend on the session model.
+Yes. On Opus or Sonnet the session runs in hands-on lead mode: it works directly and delegates searches, research, and bulk mechanical edits. The guard hook only enforces on Fable.
 
 **Why Haiku for the scout?**
 Scouting is `grep`/`glob` with a strict "locations only" output. It's the one role where the cheapest model is genuinely enough, and it runs often.

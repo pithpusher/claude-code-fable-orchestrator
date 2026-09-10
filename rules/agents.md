@@ -1,18 +1,19 @@
 # Agent Orchestration
 
-> **Scope: Fable sessions only.** Everything in this file applies when the
-> session model is Fable (`claude-fable-*`). On Opus, Sonnet, or Haiku, work
-> directly and dispatch agents only when they help; the guard hook is off for
-> those models.
+Two modes, picked by the session model:
 
-The session model is the **orchestrator**: it writes specs, dispatches agents,
-reads their reports, makes judgment calls, and integrates. It does not read
-large amounts of code, bulk-refactor, or write docs itself. There is no
-orchestrator agent file — it is the main session.
+- **Fable → lean orchestrator.** Writes specs, dispatches agents, verifies,
+  and integrates. It does not read large amounts of code, bulk-refactor, or
+  write deliverables itself. A guard hook enforces this on Fable only.
+- **Opus / Sonnet / Haiku → hands-on lead.** Works directly and delegates only
+  when it keeps the session context small. No hook.
+
+There is no orchestrator agent file. It is the main session.
 
 ## Roles
 
-Model per role is pinned in each agent's frontmatter.
+Defined in `~/.claude/agents/`. Model per role is pinned in the agent's
+frontmatter.
 
 | Agent | Model | Writes | Use for | Never does |
 |-------|-------|--------|---------|------------|
@@ -22,55 +23,62 @@ Model per role is pinned in each agent's frontmatter.
 | refuter | opus | – | Review the diff, rerun the verify command, return ACCEPT / REWORK. | Edit anything, trust a summary |
 | debugger | opus | scratch only | Root cause with repro evidence. | Apply the fix |
 
-**Only the builder edits project files, and only one builder runs at a time.**
+**One writer at a time.** On Fable, only the builder edits project files.
 
-**Do not dispatch the built-in `Explore` or `Plan` agents.** They ignore the
-subagent model default and run on Opus. `scout` replaces Explore; the
-orchestrator itself replaces Plan.
+Prefer `scout` over the built-in `Explore`, and write plans yourself instead
+of dispatching `Plan`. Both built-ins run on Opus at full context. On Fable
+the hook denies them.
 
-## Do it yourself when
+## Fable: do it yourself when
 
 Spawning costs more than doing for: a one-line fix, a single grep or glob, a
 file under ~100 lines, or an answer already in context. Do those inline.
 
-Everything else goes through the builder — **including non-code deliverables**:
+Everything else goes through the builder, **including non-code deliverables**:
 HTML, reports, templates, docs, generated assets. "No test exists" is not a
 reason to build it yourself; `MUST VERIFY` is then a render, a lint, a link
 check, or opening the file and confirming the required sections are present.
-A PreToolUse hook (shipped with the plugin) enforces this in the main
-session: `Write` over 40 lines and `Edit` inserting over 10 lines to project
-files are denied, as are the built-in `Explore`, `Plan`, and
-`general-purpose` agents. Scratchpad, `HANDOFF.md`, and `~/.claude` are
-exempt. Bash and PowerShell commands that write project files are denied too.
+One brief per feature, not per file.
+
+A PreToolUse hook (`~/.claude/hooks/orchestrator-guard.js`) enforces this when
+the session model is Fable: `Write` over 40 lines and `Edit` inserting over 10
+lines to project files are denied, Bash and PowerShell commands that write
+project files are denied, and the built-in `Explore`, `Plan`, and
+`general-purpose` agents are denied. Scratchpad, `HANDOFF.md`, and
+`~/.claude` are exempt.
 
 "It's analysis, not implementation" is not an exception. For a memo, report,
 or valuation the orchestrator writes the **conclusions and structure as a
-spec** — bullets, numbers, the argument — and the builder writes the prose.
-The judgment stays with the orchestrator; the tokens go to the builder.
+spec** (bullets, numbers, the argument) and the builder writes the prose.
 
-## Sequential phases
+## Verify
 
-Work runs one phase at a time. Parallel writers lose shared context and
-collide; the quality loss is not worth the wall-clock gain.
+1. After the builder returns, the orchestrator runs `MUST VERIFY` itself in
+   one call and reads only the tail of the output.
+2. Fail → re-brief the same builder once, failure output pasted verbatim.
+   Fails again → the orchestrator intervenes.
+3. The next step starts only after the current one verifies.
+4. If the orchestrator touches the deliverable afterward, it reruns
+   `MUST VERIFY`. The file that ships is the file that was checked.
 
-1. Orchestrator writes the phase spec into a brief. `KNOWN FACTS` carries the
-   previous phase's artifact **path**, not its contents.
-2. Builder makes the change, writes the diff and verify output to `SCRATCH`,
-   returns ≤25 lines.
-3. Refuter reads the artifact and the real diff, reruns the verify command,
-   returns the verdict.
-4. Orchestrator reads verdict and path only. `ACCEPT` → update the handoff
-   doc, dispatch the next phase. `REWORK` → same builder, findings pasted
-   verbatim. Max 2 rework loops, then the orchestrator intervenes.
-5. Never dispatch phase N+1 while phase N is unverified.
-6. If the orchestrator touches the deliverable after `ACCEPT` — fixing LOW
-   findings, wording, a heading — it reruns `MUST VERIFY` itself before the
-   phase is done. The file that ships must be the file that was checked.
+**Refuter triggers.** Dispatch the refuter only for: security, auth,
+payments, or user data; data migrations or deletions; a change across more
+than ~5 files; or when the user asks. Otherwise do not dispatch it.
+
+## Opus / Sonnet sessions
+
+Work directly. Delegate only when it saves context:
+
+- Unknown location, or more than ~3 searches → scout.
+- Web or doc facts → researcher.
+- Bulk mechanical edits across many files → builder with `model: "sonnet"`.
+- Hard bug with no known cause → debugger.
+
+Same refuter triggers. Otherwise run the verify command yourself.
 
 ## Brief template
 
-Every Agent call gets a brief in this shape. Fill every line; "n/a" is a valid
-answer, silence is not.
+Every Agent call gets a brief in this shape. `n/a` is a valid answer.
 
 ```
 GOAL: <one sentence, testable>
@@ -78,7 +86,7 @@ SCOPE: <exact files / dirs / URLs — nothing else>
 MAY CHANGE: <files> | none
 MUST VERIFY: <exact command or check>
 DO NOT: <refactor, touch tests, read outside scope, install packages, ...>
-KNOWN FACTS: <already established — do not rediscover>
+KNOWN FACTS: <already established, and previous artifact paths — not contents>
 OUTPUT: <format from the agent definition>, max <N> lines
 SCRATCH: <absolute scratchpad path> — anything longer goes here; return the path
 ```
@@ -113,12 +121,6 @@ from a rebuilt context.
 
 ## Model tiers
 
-Model per role is fixed in agent frontmatter. The Agent tool's `model` param
-is for changing a single call — `sonnet` for a trivial, tightly-specified
-builder phase, or a re-run one tier up — not for routine dispatch.
-
-Escalate, don't start high: if a cheaper agent returns a low-confidence or
-incomplete result, re-run that one task on a stronger model. Don't spend opus
-on breadth: fan out with scouts, concentrate opus on the findings that matter.
-Within one model family a weaker critic reviewing a stronger drafter is a
-downgrade, not independence — the refuter is never weaker than the builder.
+Escalation and cost rules live in `performance.md`. The Agent tool's `model`
+param is for escalating a single re-run, or for `sonnet` on bulk mechanical
+edits in Opus/Sonnet sessions, not for routine dispatch.

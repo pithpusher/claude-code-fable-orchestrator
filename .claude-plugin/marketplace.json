@@ -8,7 +8,7 @@
   "plugins": [
     {
       "name": "claude-code-fable-orchestrator",
-      "description": "Fable as orchestrator, cheap models as workers. Five subagents with pinned models, a sequential builder-then-refuter loop, and a /handoff skill.",
+      "description": "Fable as orchestrator, cheap models as workers. Five subagents with pinned models, two session modes (Fable lean orchestrator, Opus/Sonnet hands-on lead), and a /handoff skill.",
       "author": {
         "name": "pithpusher"
       },
