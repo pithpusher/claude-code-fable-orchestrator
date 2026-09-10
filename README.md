@@ -64,9 +64,11 @@ Rules are advice, and a strong orchestrator will argue its way past advice — f
 | `Agent` with `Explore`, `Plan`, or `general-purpose` | denied — use the five roles |
 | `Write` over 40 lines to a project file | denied — brief the builder |
 | `Edit` inserting over 10 lines into a project file | denied — brief the builder |
+| Bash or PowerShell that writes a project file (heredoc, redirect, `sed -i`, `cp`, `tee`, inline `python -c` / `node -e`, `Set-Content`, `bash -c "…"` wrappers, awk `>`) | denied — brief the builder |
+| `git restore`, `checkout -- <path>`, `reset --hard`, `stash pop`, `clean -f` | denied — these overwrite project files |
 | Anything in the scratchpad, `HANDOFF.md`, or `~/.claude` | allowed |
 
-The denial message tells the orchestrator what to do instead. It doesn't cover Bash writes (heredocs, `cp`, `sed`); the output style tells the orchestrator those are the same violation.
+The denial message tells the orchestrator what to do instead. It is a pattern match on the command text, not a sandbox. Known gaps: a script that lives in the scratchpad but writes into the project, in-place edits wrapped in `find -exec` or `xargs`, wrappers prefixed with `env` or `nohup`, and deletions (`rm`). The output style tells the orchestrator those are the same violation.
 
 ## Which model should each Claude Code subagent use?
 

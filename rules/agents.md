@@ -36,7 +36,7 @@ A PreToolUse hook (shipped with the plugin) enforces this in the main
 session: `Write` over 40 lines and `Edit` inserting over 10 lines to project
 files are denied, as are the built-in `Explore`, `Plan`, and
 `general-purpose` agents. Scratchpad, `HANDOFF.md`, and `~/.claude` are
-exempt. Do not route around it with Bash heredocs, `cp`, or `sed`.
+exempt. Bash and PowerShell commands that write project files are denied too.
 
 "It's analysis, not implementation" is not an exception. For a memo, report,
 or valuation the orchestrator writes the **conclusions and structure as a
