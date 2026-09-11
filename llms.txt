@@ -1,6 +1,6 @@
 # claude-code-fable-orchestrator
 
-> A Claude Code plugin that runs Fable 5.1 as the orchestrator and cheaper models as workers: five subagents with pinned models (scout=haiku, researcher=sonnet, builder=opus, refuter=opus, debugger=opus), two session modes (Fable = lean orchestrator that never writes deliverables and verifies with one command; Opus/Sonnet = hands-on lead that delegates only searches, research, and bulk edits), a brief template for every agent call, and a /handoff skill that lets a new session resume from a file.
+> A Claude Code plugin that runs Fable 5.1 as the orchestrator and cheaper models as workers: five subagents with pinned models (scout=haiku, researcher=sonnet, builder=opus, refuter=opus, debugger=opus), two session modes (Fable = lean orchestrator that never writes deliverables and verifies with one command; Opus/Sonnet = hands-on lead that delegates only searches, research, and bulk edits), a brief template for every agent call, and a /handoff skill that lets a new session resume from a file. Recommended default: an Opus session with a Fable advisor (advisorModel: fable), which Anthropic measured at 3.5 points above Opus alone for slightly less money.
 
 Install: `/plugin marketplace add pithpusher/claude-code-fable-orchestrator` then `/plugin install claude-code-fable-orchestrator@pithpusher`. Copy rules/agents.md to ~/.claude/rules/ and merge settings.snippet.json into ~/.claude/settings.json.
 
@@ -12,6 +12,8 @@ Key facts:
 - The session reruns the verify command itself after each builder step. The refuter, which reads the real `git diff`, runs only for security, auth, payments, user data, migrations, deletions, changes over ~5 files, or on request.
 - A PreToolUse guard hook enforces the orchestrator role only when the session model is Fable.
 - Phases pass artifact file paths, not contents, to keep the orchestrator's context small.
+- The advisor is consulted about twice per task: after orientation and before substantive work, and before declaring done. Consulted on most turns, it costs more than running Fable outright.
+- A subagent cold-starts at about 37k tokens (anthropics/claude-code#74318), so single greps and reads stay inline and same-type dispatches are batched.
 
 Docs:
 - README: https://github.com/pithpusher/claude-code-fable-orchestrator#readme

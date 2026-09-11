@@ -5,8 +5,9 @@ Two modes, picked by the session model:
 - **Fable → lean orchestrator.** Writes specs, dispatches agents, verifies,
   and integrates. It does not read large amounts of code, bulk-refactor, or
   write deliverables itself. A guard hook enforces this on Fable only.
-- **Opus / Sonnet / Haiku → hands-on lead.** Works directly and delegates only
-  when it keeps the session context small. No hook.
+- **Opus / Sonnet / Haiku → hands-on lead.** Works directly, consults a Fable
+  advisor at decision points, and delegates only when it keeps the session
+  context small. No hook.
 
 There is no orchestrator agent file. It is the main session.
 
@@ -54,7 +55,8 @@ spec** (bullets, numbers, the argument) and the builder writes the prose.
 ## Verify
 
 1. After the builder returns, the orchestrator runs `MUST VERIFY` itself in
-   one call and reads only the tail of the output.
+   one call and reads only failures and the summary:
+   `… 2>&1 | grep -E "FAIL|ERROR|Error|passed|failed" | tail -20`.
 2. Fail → re-brief the same builder once, failure output pasted verbatim.
    Fails again → the orchestrator intervenes.
 3. The next step starts only after the current one verifies.
@@ -67,14 +69,25 @@ than ~5 files; or when the user asks. Otherwise do not dispatch it.
 
 ## Opus / Sonnet sessions
 
-Work directly. Delegate only when it saves context:
+Work directly. A subagent starts cold at about 37k tokens, so delegate only
+when it clearly saves context:
 
-- Unknown location, or more than ~3 searches → scout.
+- Keep single greps, globs, and reads inline.
+- Unknown location needing more than ~5 searches or many file reads → scout.
 - Web or doc facts → researcher.
 - Bulk mechanical edits across many files → builder with `model: "sonnet"`.
 - Hard bug with no known cause → debugger.
+- Send same-type dispatches back to back; prefer one larger brief over
+  several small ones.
 
 Same refuter triggers. Otherwise run the verify command yourself.
+
+**Advisor.** A Fable advisor (`advisorModel: "fable"`) is configured for Opus
+and Sonnet sessions. Call it after orientation and before substantive work,
+before declaring a multi-step task done (save the result first), and when
+stuck. About two calls per task, never on most turns. Weigh its advice
+seriously and surface conflicts in one reconcile call. A Fable session does
+not call the advisor.
 
 ## Brief template
 

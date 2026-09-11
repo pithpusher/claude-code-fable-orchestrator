@@ -1,6 +1,6 @@
 # claude-code-fable-orchestrator
 
-**Fable as the orchestrator, cheaper models as the workers.** A Claude Code plugin with five subagents — scout (Haiku), researcher (Sonnet), builder (Opus), refuter (Opus), debugger (Opus) — two session modes, a brief template for every agent call, and a `/handoff` skill so a new session resumes from a file instead of rebuilding context. On Fable, the session plans, dispatches, and verifies; it never reads whole codebases or writes deliverables. On Opus or Sonnet, it works directly and hands off only searches, research, and bulk edits.
+**Fable as the orchestrator, cheaper models as the workers.** A Claude Code plugin with five subagents — scout (Haiku), researcher (Sonnet), builder (Opus), refuter (Opus), debugger (Opus) — two session modes, a brief template for every agent call, and a `/handoff` skill so a new session resumes from a file instead of rebuilding context. On Fable, the session plans, dispatches, and verifies; it never reads whole codebases or writes deliverables. On Opus or Sonnet, it works directly and hands off only searches, research, and bulk edits. The recommended default is an **Opus session with a Fable advisor**, which Anthropic measured at 3.5 points above Opus alone for slightly less money.
 
 ```
 /plugin marketplace add pithpusher/claude-code-fable-orchestrator
@@ -10,15 +10,19 @@
 ## Contents
 
 - [Install](#install)
+- [Workflow and model selection, start to finish](#workflow-and-model-selection-start-to-finish)
+- [The advisor: Fable at decision points](#the-advisor-fable-at-decision-points)
 - [Enforcement: the guard hook](#enforcement-the-guard-hook)
 - [Which model should each Claude Code subagent use?](#which-model-should-each-claude-code-subagent-use)
 - [How delegation works](#how-delegation-works)
 - [How do I keep Fable's context light?](#how-do-i-keep-fables-context-light)
 - [Trim the base context](#trim-the-base-context)
+- [What a subagent costs](#what-a-subagent-costs)
 - [Does parallel multi-agent work hurt quality?](#does-parallel-multi-agent-work-hurt-quality)
 - [The brief template](#the-brief-template)
 - [Claude Code settings that control subagent models](#claude-code-settings-that-control-subagent-models)
 - [FAQ](#faq)
+- [Prior art](#prior-art)
 - [Origin and credits](#origin-and-credits)
 
 ## Install
@@ -40,11 +44,14 @@
 
    ```json
    {
-     "model": "claude-fable-5-1",
+     "model": "opus",
+     "advisorModel": "fable",
      "fallbackModel": ["sonnet"],
      "env": { "CLAUDE_CODE_SUBAGENT_MODEL": "sonnet" }
    }
    ```
+
+   For the Fable-conducted mode instead, set `"model": "claude-fable-5-1"` and leave `advisorModel` out.
 
 4. Turn on the output style — it puts the orchestrator contract in the system prompt, where it outranks rules files:
 
@@ -52,9 +59,61 @@
    { "outputStyle": "Orchestrator" }
    ```
 
-5. Restart Claude Code. Ask it to dispatch each of `scout`, `researcher`, `builder`, `refuter`, `debugger` on a trivial task; ask it to write a 50-line file directly and confirm the hook denies it.
+5. Restart Claude Code. Confirm the "Advisor Tool (experimental) is on" notice appears. Ask it to dispatch each of `scout`, `researcher`, `builder`, `refuter`, `debugger` on a trivial task. Then run `/model fable`, ask it to write a 50-line file directly, and confirm the hook denies it.
 
 No MCP servers, no background processes. Five agents, one skill, one rule, one output style, and one hook.
+
+## Workflow and model selection, start to finish
+
+The recommended default is an **Opus session with a Fable advisor**. Opus does the work, and Fable weighs in at the two moments that decide the outcome.
+
+| Step | Who does it | Model | Why this model |
+|---|---|---|---|
+| Session | main session | Opus 5 | Strong enough to write production code directly, and cheaper per turn than Fable |
+| Orient | main session, or scout past ~5 searches | Opus 5 / Haiku 4.5 | A subagent cold-starts at ~37k tokens, so small lookups stay inline |
+| Facts from docs or the web | researcher | Sonnet 5 | Retrieval with citations doesn't need Opus |
+| Plan | main session, advisor consulted once | Opus 5 + Fable 5.1 | The first advisor call, before the approach sets, is where it adds the most |
+| Small edits | main session | Opus 5 | Spawning costs more than doing |
+| A whole feature | builder | Opus 5 | Keeps the session's context small on long work |
+| Bulk mechanical edits | builder with `model: "sonnet"` | Sonnet 5 | Renames and codemods don't need Opus |
+| Verify | main session, one filtered command | Opus 5 | One turn instead of a reviewer agent |
+| Review | refuter, only on risk triggers | Opus 5 | Security, auth, payments, user data, migrations, deletions, changes over ~5 files |
+| Stuck | advisor, then debugger | Fable 5.1, then Opus 5 | A second opinion first, then a root-cause hunt if that doesn't unstick it |
+| Done check | advisor, after the result is saved | Fable 5.1 | The second of about two advisor calls per task |
+| Milestones | `/handoff` | – | A new session resumes from a file |
+
+**Fable-conducted alternative.** When Fable quota is plentiful, set `model` to `claude-fable-5-1`. The session becomes a lean orchestrator: the builder writes every deliverable, and the guard hook enforces that. A Fable session uses no advisor, because no model is stronger.
+
+| Step | Who | Model |
+|---|---|---|
+| Plan, specs, judgment | main session | Fable 5.1 |
+| Locate / facts | scout / researcher | Haiku 4.5 / Sonnet 5 |
+| Every deliverable | builder | Opus 5 |
+| Verify | main session, one command | Fable 5.1 |
+| Review | refuter, triggers only | Opus 5 |
+
+## The advisor: Fable at decision points
+
+Claude Code's [advisor tool](https://code.claude.com/docs/en/advisor) lets the session model consult a stronger model mid-task. Set it once:
+
+```json
+{ "model": "opus", "advisorModel": "fable" }
+```
+
+What Anthropic measured, in [*Optimizing for cost and intelligence*](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence):
+
+- **Opus 5 + Fable 5.1 advisor** was the most accurate configuration on an internal agentic-coding benchmark: **3.5 points above Opus 5 alone, for slightly less money.** Good early advice cuts dead-end exploration, which pays for the consultations. Claude Code's advisor mode showed the same ordering.
+- **Sonnet 5 + advisor** closes at least half the gap to the stronger model when it keeps consulting. At low effort it can stop consulting and score below Sonnet alone. It is not reliably better than Opus alone.
+- **It loses when consulted on most tasks.** On one benchmark the pairing matched Fable alone at 2.6 times the cost, because the advisor fired almost every time.
+
+How the output style keeps it on the winning side:
+
+- About **two calls per task**: one after orientation and before substantive work, one before declaring done with the result already saved. Extra calls only when stuck.
+- No calls on short reactive tasks.
+- A line addressed to the advisor asks for guidance under 150 words, since advisor output is its largest cost.
+- Effort stays at the default or higher. Lower effort makes the session stop consulting.
+
+An Opus main accepts a Fable advisor; a Fable main accepts only Fable. The advisor rereads the whole conversation on every call, uncached. Toggling it doesn't invalidate the session's prompt cache, unlike `/model`. Fable 5.1 as advisor needs Claude Code 2.1.257 or later, and `/advisor` in the desktop app needs 2.1.260 or later.
 
 ## Enforcement: the guard hook
 
@@ -133,6 +192,12 @@ Every turn re-reads the full system prompt. A fresh session measured about 102k 
 - **App plugins** (legal, sales, marketing, …): turn off in the Claude app's plugin settings.
 - **claude.ai connectors:** disconnect the ones you don't use in Claude Code at claude.ai → Settings → Connectors.
 
+## What a subagent costs
+
+A subagent starts with a fresh context. Measurements across 1,777 subagents in [anthropics/claude-code#74318](https://github.com/anthropics/claude-code/issues/74318) put the cold start at about 37k tokens, 97% of it static: system prompt, tool schemas, project rules. A same-type sibling dispatched within five minutes hit the cache about 85% of the time. One with no recent sibling hit it about 45% of the time.
+
+So keep single greps and reads inline, and delegate only work that would take more than a handful of tool calls. Send same-type dispatches back to back, and prefer one larger brief over several small ones.
+
 ## Does parallel multi-agent work hurt quality?
 
 For **writing**, yes. Parallel builders lose shared context, produce integration seams, and collide on files. The evidence points one way:
@@ -175,7 +240,8 @@ Agent tool `model` param  >  agent frontmatter `model:`  >  CLAUDE_CODE_SUBAGENT
 |---------|-------|--------------|
 | `model:` in agent frontmatter | `~/.claude/agents/<name>.md` | Pins one agent. Accepts `haiku`, `sonnet`, `opus`, `fable`, `inherit`, or a full model ID. This plugin pins all five. |
 | `CLAUDE_CODE_SUBAGENT_MODEL` | `env` block in `settings.json` | Default for every subagent with no `model:` — including built-in `Explore`/`Plan` and other plugins' agents. |
-| `model` | `settings.json` | The session (orchestrator) model. `claude-fable-5-1` here. |
+| `model` | `settings.json` | The session model. `opus` in the recommended setup, `claude-fable-5-1` for the Fable-conducted mode. |
+| `advisorModel` | `settings.json` | The model the session consults at decision points. `fable` here. It must be at least as capable as the session model. |
 | `fallbackModel` | `settings.json` | Availability failover when the session model is overloaded. Not a quality cascade. |
 | `availableModels` | `settings.json` | Hard allowlist. An agent pinned to a model outside it inherits the parent model instead. Also trims your `/model` picker. |
 
@@ -188,6 +254,9 @@ Because the refuter no longer runs on every step, the builder's first draft is u
 
 **Doesn't delegation cost more tokens than just prompting?**
 It can. Every agent starts cold. The old always-on refuter reread everything the builder wrote. Delegation pays off when it moves many-turn reading and writing off the expensive session model. For a one-file fix, do it inline, which is what both modes say.
+
+**Is Sonnet with an advisor better than Opus alone?**
+Not reliably. In Anthropic's measurements an advisor closes at least half the gap to the stronger model when the session keeps consulting it, but a Sonnet session at low effort can stop consulting. The pairing Anthropic measured above Opus alone is Opus with a Fable advisor.
 
 **Can I use this without Fable?**
 Yes. On Opus or Sonnet the session runs in hands-on lead mode: it works directly and delegates searches, research, and bulk mechanical edits. The guard hook only enforces on Fable.
@@ -206,6 +275,17 @@ Those route *per request* with a learned policy. This routes *per role* with a f
 
 **Why not ship the rule inside the plugin?**
 Plugins can install agents, skills, commands, hooks and MCP servers. They don't install rules files, so `rules/agents.md` is a one-time copy.
+
+## Prior art
+
+Others have built the same idea. Worth reading before you pick:
+
+- [fable-baton](https://github.com/realgarit/fable-baton): Fable orchestrates Haiku, Sonnet, and Opus agents, enforced by a session-start policy, a per-prompt reminder, and a counter that nudges after four inline tool calls. Its own benchmark is honest: total cost came out about the same or higher with orchestration, while Fable's own output tokens dropped 38–44%. Delegation spreads load across quotas more than it cuts total tokens.
+- [claude-code-orchestra](https://github.com/DeL-TaiseiOzaki/claude-code-orchestra): Claude Code orchestrating Sonnet and Opus subagents, with Codex CLI for planning and Fable as a rare escalation tier.
+- [fable-advisor](https://github.com/DannyMac180/fable-advisor): keeps day-to-day work on other vendors' models and calls Fable at decision points.
+- [fable5-opus5-orchestrator](https://github.com/Rylaa/fable5-opus5-orchestrator) and [claude-code-workflow-orchestration](https://github.com/barkain/claude-code-workflow-orchestration): larger agent sets with requirements ledgers and workflow graphs.
+
+What this repo does differently: a hard `PreToolUse` deny on Fable instead of nudges, two session modes keyed to the model, the refuter only on risk triggers, and Anthropic's measured advisor pairing as the default.
 
 ## Origin and credits
 

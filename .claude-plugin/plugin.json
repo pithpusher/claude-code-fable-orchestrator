@@ -1,7 +1,7 @@
 {
   "name": "claude-code-fable-orchestrator",
-  "description": "Fable as orchestrator, cheap models as workers. Five Claude Code subagents (scout, researcher, builder, refuter, debugger) with pinned models, two session modes (Fable as a lean orchestrator, Opus/Sonnet as a hands-on lead), a Fable-only guard hook, and a /handoff skill that keeps the main session context light.",
-  "version": "1.4.0",
+  "description": "Fable as orchestrator, cheap models as workers. Five Claude Code subagents (scout, researcher, builder, refuter, debugger) with pinned models, two session modes (Fable as a lean orchestrator, Opus/Sonnet as a hands-on lead), a Fable-only guard hook, and a /handoff skill that keeps the main session context light. Recommended default: an Opus session with a Fable advisor.",
+  "version": "1.5.0",
   "author": {
     "name": "pithpusher"
   },
