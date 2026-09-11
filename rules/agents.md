@@ -27,7 +27,8 @@ frontmatter.
 **One writer at a time.** On Fable, only the builder edits project files.
 
 Prefer `scout` over the built-in `Explore`, and write plans yourself instead
-of dispatching `Plan`. Both built-ins run on Opus at full context. On Fable
+of dispatching `Plan`. Both built-ins inherit the session model (Explore is
+capped at Opus) instead of running on scout's Haiku. On Fable
 the hook denies them.
 
 ## Fable: do it yourself when
