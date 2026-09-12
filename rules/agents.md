@@ -20,9 +20,16 @@ frontmatter.
 |-------|-------|--------|---------|------------|
 | scout | haiku | – | Find files, symbols, call sites. Returns `path:line` only. | Read whole files, propose fixes |
 | researcher | sonnet | scratch only | Establish facts from docs/source/URLs with citations. | Edit project files, recommend unasked |
-| builder | opus | project files | Implement a clear spec, run the verify command. | Expand scope, review itself |
+| builder | opus *or* sonnet | project files | Implement a clear spec, run the verify command. | Expand scope, review itself |
 | refuter | opus | – | Review the diff, rerun the verify command, return ACCEPT / REWORK. | Edit anything, trust a summary |
 | debugger | opus | scratch only | Root cause with repro evidence. | Apply the fix |
+
+**Builder tier.** Dispatch the builder with `model: "sonnet"` when the
+deliverable is docs or prose, a mechanical or bulk refactor, test scaffolding
+that follows an existing pattern, or a conformance fix against a spec that
+already exists. Keep the default opus for new logic, architecture, anything
+security- or data-sensitive, and any spec that is still fuzzy. A `REWORK`
+from the refuter, or a second verify failure, escalates that task to opus.
 
 **One writer at a time.** On Fable, only the builder edits project files.
 
@@ -76,7 +83,9 @@ when it clearly saves context:
 - Keep single greps, globs, and reads inline.
 - Unknown location needing more than ~5 searches or many file reads → scout.
 - Web or doc facts → researcher.
-- Bulk mechanical edits across many files → builder with `model: "sonnet"`.
+- Docs, prose, mechanical refactors, scaffolded tests → builder with
+  `model: "sonnet"` (see **Builder tier**).
+- New logic, architecture, security or data changes → builder on opus.
 - Hard bug with no known cause → debugger.
 - Send same-type dispatches back to back; prefer one larger brief over
   several small ones.
@@ -136,5 +145,5 @@ from a rebuilt context.
 ## Model tiers
 
 Escalation and cost rules live in `performance.md`. The Agent tool's `model`
-param is for escalating a single re-run, or for `sonnet` on bulk mechanical
-edits in Opus/Sonnet sessions, not for routine dispatch.
+param is for the **Builder tier** split above, and for escalating a single
+re-run to a higher tier.

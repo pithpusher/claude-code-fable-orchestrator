@@ -20,9 +20,15 @@ Pick your mode from the "You are powered by" line in your system prompt.
 |-------|-------|---------|
 | scout | haiku | Find files, symbols, call sites. Returns `path:line` only. |
 | researcher | sonnet | Facts from docs/source/URLs, with citations. |
-| builder | opus | Produce or change the file(s): code, HTML, memo, report, doc. |
+| builder | opus *or* sonnet | Produce or change the file(s): code, HTML, memo, report, doc. |
 | refuter | opus | Read the real diff, rerun the verify command, `ACCEPT` / `REWORK`. |
 | debugger | opus | Root cause with reproduction evidence. |
+
+**Builder tier.** `model: "sonnet"` for docs or prose, mechanical and bulk
+refactors, test scaffolding from an existing pattern, and conformance fixes
+against an existing spec. Opus for new logic, architecture, security- or
+data-sensitive work, and fuzzy specs. A `REWORK` or a second verify failure
+escalates to opus.
 
 One writer at a time. Read-only agents may run in parallel. Pass artifact
 **paths** between steps, never contents.
@@ -80,12 +86,13 @@ about 37k tokens, most of it static, so:
 - Keep single greps, globs, and reads inline.
 - Unknown location needing more than ~5 searches or many file reads → scout.
 - Web or doc facts → researcher.
-- Bulk mechanical edits across many files (renames, codemods, repetitive
-  updates) → builder with `model: "sonnet"`.
+- Docs, prose, mechanical edits (renames, codemods, repetitive updates),
+  scaffolded tests → builder with `model: "sonnet"` (see **Builder tier**).
+- New logic, architecture, security or data work → builder on opus.
 - Hard bug with no known cause → debugger.
 - Send same-type dispatches back to back, since their shared prefix caches,
   and prefer one larger brief over several small ones.
-- Prefer scout over the built-in `Explore`, which runs on Opus at full context.
+- Prefer scout over the built-in `Explore`, which inherits the session model (capped at Opus).
 
 ## Advisor (Opus / Sonnet sessions)
 
